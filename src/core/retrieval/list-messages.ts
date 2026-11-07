@@ -9,7 +9,12 @@ export interface ListMessagesOptions {
 export function listMessages(
   db: Store,
   opts: ListMessagesOptions,
-): { messages: MessageDetail[]; nextCursor: { timestamp: string; messageId: string } | null } {
+): {
+  messages: MessageDetail[];
+  nextCursor: { timestamp: string; messageId: string } | null;
+  gaps: { reason: string; id: string; project: string | null }[];
+  malformedCount: number;
+} {
   const limit = opts.limit ?? 100;
   if (
     !Number.isInteger(limit) ||
@@ -31,7 +36,21 @@ export function listMessages(
   }[];
   const selected = rows.slice(0, limit);
   const last = selected.at(-1);
+  const malformed = db
+    .prepare(
+      "SELECT message_id AS id,project FROM messages WHERE role=? AND (timestamp IS NULL OR julianday(timestamp) IS NULL) ORDER BY message_id LIMIT ?",
+    )
+    .all(opts.role, limit) as { id: string; project: string | null }[];
+  const malformedCount = (
+    db
+      .prepare(
+        "SELECT COUNT(*) AS total FROM messages WHERE role=? AND (timestamp IS NULL OR julianday(timestamp) IS NULL)",
+      )
+      .get(opts.role) as { total: number }
+  ).total;
   return {
+    gaps: malformed.map((row) => ({ reason: "malformed-lore-row", ...row })),
+    malformedCount,
     messages: selected.map((row) => {
       const message = getMessage(db, row.id, { full: true })!;
       return { ...message, uuid: message.nativeUuid ?? message.uuid };

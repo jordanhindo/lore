@@ -43,3 +43,31 @@ it("pages full messages including unattributed and agent rows without dropping t
   expect(last.nextCursor).toBeNull();
   db.close();
 });
+
+it("reports malformed timestamps instead of silently dropping those rows", () => {
+  const db = openStore(":memory:");
+  upsertMessage(db, {
+    messageId: "malformed",
+    sourceFileId: "sf",
+    sessionId: "s",
+    uuid: "u",
+    parentUuid: null,
+    seq: 0,
+    role: "user",
+    timestamp: null,
+    project: "/company",
+    branch: null,
+    model: null,
+    agent: null,
+    skill: null,
+    text: "synthetic",
+    textTruncated: false,
+  });
+  const page = listMessages(db, { role: "user", since: "2026-11-01T00:00:00Z" });
+  expect(page).toMatchObject({
+    messages: [],
+    gaps: [{ reason: "malformed-lore-row", id: "malformed", project: "/company" }],
+    malformedCount: 1,
+  });
+  db.close();
+});
