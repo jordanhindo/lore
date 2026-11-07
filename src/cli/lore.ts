@@ -108,6 +108,10 @@ Usage:
   lore sessions [filters] [--json]
                                      List session rollups (newest first). Filters:
                                      --project --source --since --until --limit
+  lore messages --role user --since <timestamp> [--limit N] [--json]
+                                     Full stored text with provenance. Page by --after-id;
+                                     --after-index/--through-index retain late arrivals.
+                                     --coverage-roots <JSON array> checks source freshness.
   lore get <message-id> [--full] [--json]
                                      Fetch one message. Default is an elided snippet;
                                      --full returns the complete stored text

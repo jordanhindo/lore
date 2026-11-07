@@ -8,6 +8,7 @@ import type {
 } from "../core/records.js";
 
 export interface FileMetadata {
+  nativeSessionId?: string | null;
   entrypoint?: string | null;
   authorKind?: MessageRecord["authorKind"];
   project?: string | null;

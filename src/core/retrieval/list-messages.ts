@@ -80,7 +80,12 @@ export function listMessages(
     const messages = selected
       .map((row) => getMessage(db, row.id, { full: true }))
       .filter((row): row is MessageDetail => row !== null)
-      .map((row) => ({ ...row, uuid: row.nativeUuid ?? row.uuid }));
+      .map((row) => ({
+        ...row,
+        uuid: row.nativeUuid ?? row.uuid,
+        loreSessionId: row.sessionId,
+        sessionId: row.nativeSessionId ?? row.sessionId,
+      }));
     return {
       messages,
       nextCursor:
@@ -125,7 +130,12 @@ export function listMessages(
     malformedCount,
     messages: selected.map((row) => {
       const message = getMessage(db, row.id, { full: true })!;
-      return { ...message, uuid: message.nativeUuid ?? message.uuid };
+      return {
+        ...message,
+        uuid: message.nativeUuid ?? message.uuid,
+        loreSessionId: message.sessionId,
+        sessionId: message.nativeSessionId ?? message.sessionId,
+      };
     }),
     nextCursor:
       rows.length > limit && last ? { timestamp: last.timestamp, messageId: last.id } : null,

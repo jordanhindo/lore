@@ -10,6 +10,8 @@ export interface MessageDetail {
   sessionId: string;
   uuid: string;
   nativeUuid?: string | null;
+  nativeSessionId?: string | null;
+  loreSessionId?: string;
   parentUuid: string | null;
   seq: number;
   role: string;
@@ -38,6 +40,7 @@ interface MessageRow {
   session_id: string;
   uuid: string;
   native_uuid: string | null;
+  native_session_id: string | null;
   parent_uuid: string | null;
   seq: number;
   role: string;
@@ -64,7 +67,7 @@ export function getMessage(
   const columns = new Set(
     (db.pragma("table_info(messages)") as { name: string }[]).map((column) => column.name),
   );
-  const metadata = ["author_kind", "entrypoint", "native_uuid"]
+  const metadata = ["author_kind", "entrypoint", "native_uuid", "native_session_id"]
     .map((column) => (columns.has(column) ? column : `NULL AS ${column}`))
     .join(", ");
   const row = db
@@ -88,6 +91,7 @@ export function getMessage(
     sessionId: row.session_id,
     uuid: row.uuid,
     nativeUuid: row.native_uuid,
+    nativeSessionId: row.native_session_id,
     parentUuid: row.parent_uuid,
     seq: row.seq,
     role: row.role,

@@ -100,6 +100,9 @@ export function getCodexFileMetadata(rawLines: string[]): FileMetadata {
       branch: null,
       model: typeof payload.model === "string" ? payload.model : null,
       agent: agentFromSessionMeta(payload),
+      ...(typeof payload.id === "string" && payload.id.trim()
+        ? { nativeSessionId: payload.id.trim() }
+        : {}),
       ...(typeof payload.originator === "string"
         ? {
             entrypoint: payload.originator === "T3 Code" ? "t3-code" : payload.originator,
@@ -138,6 +141,7 @@ export function parseCodexLine(rawLine: string, ctx: ParseContext): ParseOutcome
     messageId,
     sourceFileId: ctx.sourceFileId,
     sessionId: ctx.sessionId,
+    nativeSessionId: ctx.fileMetadata?.nativeSessionId ?? null,
     nativeUuid:
       [parsed.id, parsed.uuid, parsed.item_id].find(
         (value) => typeof value === "string" && value.trim(),

@@ -14,7 +14,7 @@ function userLine(overrides: Record<string, unknown> = {}): string {
     parentUuid: null,
     timestamp: "2026-05-10T03:53:45.638Z",
     sessionId: "sess-1",
-    cwd: "/Users/jordanhindo/claude-lives",
+    cwd: "/synthetic/claude-project",
     gitBranch: "main",
     message: { role: "user", content: "remember the alamo" },
     ...overrides,
@@ -33,7 +33,7 @@ describe("parseLine — user message", () => {
     expect(message.uuid).toBe("u-1");
     expect(message.parentUuid).toBeNull();
     expect(message.seq).toBe(0);
-    expect(message.project).toBe("/Users/jordanhindo/claude-lives");
+    expect(message.project).toBe("/synthetic/claude-project");
     expect(message.branch).toBe("main");
     expect(message.textTruncated).toBe(false);
   });
