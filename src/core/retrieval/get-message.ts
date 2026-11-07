@@ -5,6 +5,8 @@ export interface MessageDetail {
   messageId: string;
   sourceFileId: string;
   source: string | null;
+  sourcePath: string | null;
+  lastTimestamp: string | null;
   sessionId: string;
   uuid: string;
   parentUuid: string | null;
@@ -30,6 +32,8 @@ interface MessageRow {
   message_id: string;
   source_file_id: string;
   source: string | null;
+  source_path: string | null;
+  last_timestamp: string | null;
   session_id: string;
   uuid: string;
   parent_uuid: string | null;
@@ -59,7 +63,9 @@ export function getMessage(
     .prepare(
       `SELECT message_id, source_file_id, session_id, uuid, parent_uuid, seq, role,
               timestamp, project, branch, model, agent, text, text_truncated, author_kind, entrypoint,
-              (SELECT source FROM source_files sf WHERE sf.source_file_id = messages.source_file_id) AS source
+              (SELECT source FROM source_files sf WHERE sf.source_file_id = messages.source_file_id) AS source,
+              (SELECT path FROM source_files sf WHERE sf.source_file_id = messages.source_file_id) AS source_path,
+              (SELECT last_timestamp FROM sessions s WHERE s.session_id = messages.session_id) AS last_timestamp
          FROM messages WHERE message_id = ?`,
     )
     .get(messageId) as MessageRow | undefined;
@@ -69,6 +75,8 @@ export function getMessage(
     messageId: row.message_id,
     sourceFileId: row.source_file_id,
     source: row.source,
+    sourcePath: row.source_path,
+    lastTimestamp: row.last_timestamp,
     sessionId: row.session_id,
     uuid: row.uuid,
     parentUuid: row.parent_uuid,

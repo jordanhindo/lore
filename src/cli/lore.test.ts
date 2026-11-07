@@ -1673,6 +1673,8 @@ it("messages CLI lists full authored text and provenance without keyword search"
       {
         messageId: "mp1",
         source: "claude-code",
+        sourcePath: "/transcripts/push.jsonl",
+        lastTimestamp: "2026-05-10T00:00:00.000Z",
         text: "pushed alamo content",
         authorKind: null,
         entrypoint: null,
