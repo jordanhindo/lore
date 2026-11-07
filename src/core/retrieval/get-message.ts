@@ -61,10 +61,16 @@ export function getMessage(
   messageId: string,
   opts: GetMessageOptions = {},
 ): MessageDetail | null {
+  const columns = new Set(
+    (db.pragma("table_info(messages)") as { name: string }[]).map((column) => column.name),
+  );
+  const metadata = ["author_kind", "entrypoint", "native_uuid"]
+    .map((column) => (columns.has(column) ? column : `NULL AS ${column}`))
+    .join(", ");
   const row = db
     .prepare(
       `SELECT message_id, source_file_id, session_id, uuid, parent_uuid, seq, role,
-              timestamp, project, branch, model, agent, text, text_truncated, author_kind, entrypoint, native_uuid,
+              timestamp, project, branch, model, agent, text, text_truncated, ${metadata},
               (SELECT source FROM source_files sf WHERE sf.source_file_id = messages.source_file_id) AS source,
               (SELECT path FROM source_files sf WHERE sf.source_file_id = messages.source_file_id) AS source_path,
               (SELECT last_timestamp FROM sessions s WHERE s.session_id = messages.session_id) AS last_timestamp

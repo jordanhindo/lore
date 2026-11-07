@@ -83,3 +83,20 @@ it("round trips authorship and entrypoint while older admissions remain unattrib
   });
   db.close();
 });
+
+it("reads pre-authorship stores without migrating or inventing provenance", async () => {
+  const { default: Database } = await import("better-sqlite3");
+  const { initSchema } = await import("../store/schema.js");
+  const db = new Database(":memory:");
+  initSchema(db);
+  db.prepare(
+    "INSERT INTO messages(message_id,source_file_id,session_id,uuid,seq,role,text) VALUES ('old','file','session','u',0,'user','old words')",
+  ).run();
+  expect(getMessage(db, "old", { full: true })).toMatchObject({
+    text: "old words",
+    authorKind: null,
+    entrypoint: null,
+  });
+  expect(db.pragma("user_version", { simple: true })).toBe(0);
+  db.close();
+});
