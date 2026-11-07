@@ -1714,3 +1714,43 @@ it("messages CLI uses an ingestion cursor to include a newly indexed older turn"
     JSON.parse(second.stdout).messages.map((row: { messageId: string }) => row.messageId),
   ).toEqual(["late-cli"]);
 });
+
+it("messages reports a behind company transcript even when the ingestion page is empty", async () => {
+  const { utimes } = await import("node:fs/promises");
+  const { indexFile } = await import("../core/indexer/index-file.js");
+  const path = join(dir, "coverage.jsonl"),
+    timestamp = new Date(Date.now() - 180000).toISOString();
+  const row = {
+    type: "user",
+    uuid: "known",
+    cwd: dir,
+    origin: { kind: "human" },
+    timestamp,
+    message: { content: "synthetic" },
+  };
+  await writeFile(path, JSON.stringify(row) + "\n");
+  await utimes(path, new Date(timestamp), new Date(timestamp));
+  const db = openStore(dbPath);
+  await indexFile(db, { path });
+  db.close();
+  const args = ["messages", "--role", "user", "--since", "2026-01-01T00:00:00Z", "--json"];
+  const first = JSON.parse((await runCaptured([...args, "--after-index", "0"])).stdout);
+  await writeFile(
+    path,
+    JSON.stringify(row) +
+      "\n" +
+      JSON.stringify({ ...row, uuid: "pending", timestamp: new Date().toISOString() }) +
+      "\n",
+  );
+  const result = await runCaptured([
+    ...args,
+    "--after-index",
+    String(first.snapshotIndex),
+    "--coverage-roots",
+    JSON.stringify([dir]),
+  ]);
+  expect(result.code).toBe(0);
+  const page = JSON.parse(result.stdout);
+  expect(page.messages).toEqual([]);
+  expect(page.gaps.some((gap: { reason: string }) => gap.reason === "Lore behind")).toBe(true);
+});

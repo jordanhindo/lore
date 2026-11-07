@@ -1,3 +1,5 @@
+import { stat, realpath } from "node:fs/promises";
+import { relative, resolve, isAbsolute } from "node:path";
 import type { Store } from "../store/open-store.js";
 import { getMessage, type MessageDetail } from "./get-message.js";
 export interface ListMessagesOptions {
@@ -128,4 +130,54 @@ export function listMessages(
     nextCursor:
       rows.length > limit && last ? { timestamp: last.timestamp, messageId: last.id } : null,
   };
+}
+
+interface CoverageSource {
+  id: string;
+  path: string;
+  project: string | null;
+  lastTimestamp: string | null;
+}
+export function messageCoverageSources(db: Store): CoverageSource[] {
+  return db
+    .prepare(
+      `SELECT sf.source_file_id AS id,sf.path,
+   (SELECT project FROM messages m WHERE m.source_file_id=sf.source_file_id AND m.project IS NOT NULL ORDER BY seq DESC LIMIT 1) AS project,
+   (SELECT MAX(timestamp) FROM messages m WHERE m.source_file_id=sf.source_file_id) AS lastTimestamp
+   FROM source_files sf WHERE sf.source IN ('claude-code','codex')`,
+    )
+    .all() as CoverageSource[];
+}
+export async function messageCoverageGaps(
+  sources: CoverageSource[],
+  roots: string[],
+  since: string,
+) {
+  const canonical = await Promise.all(
+    roots.map((root) => realpath(root).catch(() => resolve(root))),
+  );
+  const gaps: { reason: string; id: string; project: string | null }[] = [];
+  for (const source of sources) {
+    if (!source.project) continue;
+    const project = await realpath(source.project).catch(() => resolve(source.project!));
+    if (
+      !canonical.some((root) => {
+        const rel = relative(root, project);
+        return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+      })
+    )
+      continue;
+    try {
+      const file = await stat(source.path);
+      if (
+        file.mtimeMs > Date.parse(since) &&
+        file.mtimeMs - Date.parse(source.lastTimestamp ?? "") > 120000
+      )
+        gaps.push({ reason: "Lore behind", id: source.id, project: source.project });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+        gaps.push({ reason: "source stat unavailable", id: source.id, project: source.project });
+    }
+  }
+  return gaps;
 }

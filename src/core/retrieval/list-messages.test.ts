@@ -119,3 +119,15 @@ it("an ingestion cursor retrieves a late older message and metadata reindex with
   expect(third.epoch).toBe(first.epoch);
   db.close();
 });
+
+it("pins ingestion pages to one snapshot and exposes intervening writes on the next run",()=>{
+ const db=openStore(":memory:");const base={sourceFileId:'sf',sessionId:'s',parentUuid:null,seq:0,role:'user' as const,timestamp:'2026-11-07T01:00:00Z',project:'/company',branch:null,model:null,agent:null,skill:null,text:'words',textTruncated:false};
+ for(const id of ['a','b'])upsertMessage(db,{...base,messageId:id,uuid:id});
+ const first=listMessages(db,{role:'user',since:'2026-11-01T00:00:00Z',afterIndex:0,limit:1});
+ upsertMessage(db,{...base,messageId:'c',uuid:'c',timestamp:'2026-11-02T00:00:00Z'});
+ const second=listMessages(db,{role:'user',since:'2026-11-01T00:00:00Z',afterIndex:first.nextCursor!.index,throughIndex:first.snapshotIndex,limit:1});
+ expect(second.messages.map(row=>row.messageId)).toEqual(['b']);expect(second.nextCursor).toBeNull();
+ const next=listMessages(db,{role:'user',since:'2026-11-01T00:00:00Z',afterIndex:second.snapshotIndex});
+ expect(next.messages.map(row=>row.messageId)).toEqual(['c']);
+ db.close();
+});

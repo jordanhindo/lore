@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-import { listMessages } from "../core/retrieval/list-messages.js";
+import {
+  listMessages,
+  messageCoverageSources,
+  messageCoverageGaps,
+} from "../core/retrieval/list-messages.js";
 import { existsSync } from "node:fs";
 import { isMainModule } from "./is-main.js";
 import { openStore, openStoreReadonly, type Store } from "../core/store/open-store.js";
@@ -456,8 +460,20 @@ export async function runCli(argv: string[]): Promise<number> {
         missingStore(dbPath);
         return 1;
       }
-      const result = withReadonlyStore(dbPath, (db) =>
-        listMessages(db, {
+      let coverageRoots: string[] | undefined;
+      if (value("--coverage-roots") !== undefined) {
+        try {
+          const parsed = JSON.parse(value("--coverage-roots")!);
+          if (!Array.isArray(parsed) || parsed.some((root) => typeof root !== "string" || !root))
+            throw new Error();
+          coverageRoots = parsed;
+        } catch {
+          process.stderr.write("invalid coverage roots\n");
+          return 1;
+        }
+      }
+      const result = withReadonlyStore(dbPath, (db) => ({
+        page: listMessages(db, {
           since,
           role,
           afterId: value("--after-id"),
@@ -467,9 +483,15 @@ export async function runCli(argv: string[]): Promise<number> {
             value("--through-index") === undefined ? undefined : Number(value("--through-index")),
           limit: value("--limit") === undefined ? 100 : Number(value("--limit")),
         }),
-      );
+        sources: coverageRoots ? messageCoverageSources(db) : [],
+      }));
       if (!result.ok) return 1;
-      process.stdout.write(JSON.stringify(result.value) + "\n");
+      const page = result.value.page;
+      if (coverageRoots)
+        page.gaps.push(...(await messageCoverageGaps(result.value.sources, coverageRoots, since)));
+      process.stdout.write(
+        JSON.stringify({ ...page, ...(coverageRoots ? { coverageChecked: true } : {}) }) + "\n",
+      );
       return 0;
     }
     case "sessions": {

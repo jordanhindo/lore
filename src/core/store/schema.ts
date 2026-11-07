@@ -62,6 +62,7 @@ export function initSchema(db: DatabaseType.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_messages_session ON messages (session_id, seq);
     CREATE INDEX IF NOT EXISTS idx_messages_file ON messages (source_file_id, seq);
+    CREATE INDEX IF NOT EXISTS idx_messages_file_timestamp ON messages (source_file_id, timestamp);
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages (timestamp);
     CREATE INDEX IF NOT EXISTS idx_messages_agent ON messages (agent);
     CREATE INDEX IF NOT EXISTS idx_messages_skill ON messages (skill);
