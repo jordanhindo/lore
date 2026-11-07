@@ -8,6 +8,8 @@ import type {
 } from "../core/records.js";
 
 export interface FileMetadata {
+  entrypoint?: string | null;
+  authorKind?: MessageRecord["authorKind"];
   project?: string | null;
   branch?: string | null;
   model?: string | null;

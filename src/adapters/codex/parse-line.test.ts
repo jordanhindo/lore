@@ -144,3 +144,55 @@ describe("parseCodexLine", () => {
     expect(parseCodexLine("{not json", ctx).kind).toBe("skipped");
   });
 });
+
+// Confirmed seam: Codex parse with session metadata, SPEC R-02 L2.
+describe("Codex authorship", () => {
+  it.each([
+    ["Codex Desktop", "cli", "human"],
+    ["codex_cli_rs", "cli", "human"],
+    ["codex_vscode", "vscode", "human"],
+    ["codex_exec", "exec", "agent"],
+    ["Codex Desktop", { subagent: { thread_spawn: {} } }, "agent"],
+    ["unknown", "cli", "unattributed"],
+  ])("classifies %s session %j as %s", (originator, source, expected) => {
+    const fileMetadata = getCodexFileMetadata([
+      JSON.stringify({ type: "session_meta", payload: { originator, source } }),
+    ]);
+    const result = parseCodexLine(
+      JSON.stringify({
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Please keep this." }],
+        },
+      }),
+      { ...ctx, fileMetadata },
+    );
+    if (result.kind !== "parsed") throw new Error(result.reason);
+    expect(result.parsed.message).toMatchObject({ authorKind: expected, entrypoint: originator });
+  });
+  it("does not attribute an injected-only user row to a human", () => {
+    const fileMetadata = getCodexFileMetadata([
+      JSON.stringify({
+        type: "session_meta",
+        payload: { originator: "Codex Desktop", source: "cli" },
+      }),
+    ]);
+    const result = parseCodexLine(
+      JSON.stringify({
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [
+            { type: "input_text", text: "<environment_context>injected</environment_context>" },
+          ],
+        },
+      }),
+      { ...ctx, fileMetadata },
+    );
+    if (result.kind !== "parsed") throw new Error(result.reason);
+    expect(result.parsed.message).toMatchObject({ authorKind: "harness" });
+  });
+});

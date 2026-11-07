@@ -28,6 +28,7 @@ interface CodexPayload {
   agent_role?: string;
   agent_path?: string;
   source?: unknown;
+  originator?: string;
   base_instructions?: { text?: string };
 }
 
@@ -87,6 +88,12 @@ export function getCodexFileMetadata(rawLines: string[]): FileMetadata {
       branch: null,
       model: typeof payload.model === "string" ? payload.model : null,
       agent: agentFromSessionMeta(payload),
+      ...(typeof payload.originator === "string"
+        ? {
+            entrypoint: payload.originator,
+            authorKind: sessionAuthor(payload),
+          }
+        : {}),
     };
   }
   return {};
@@ -128,6 +135,8 @@ export function parseCodexLine(rawLine: string, ctx: ParseContext): ParseOutcome
     model: ctx.fileMetadata?.model ?? null,
     agent: ctx.fileMetadata?.agent ?? null,
     skill: null,
+    entrypoint: ctx.fileMetadata?.entrypoint ?? null,
+    authorKind: ctx.fileMetadata?.authorKind ?? "unattributed",
   };
 
   switch (payload.type) {
@@ -136,6 +145,12 @@ export function parseCodexLine(rawLine: string, ctx: ParseContext): ParseOutcome
       const message: MessageRecord = {
         ...base,
         role: mapRole(payload.role),
+        authorKind:
+          payload.role !== "user"
+            ? "harness"
+            : !stripInjectedCodexText(capped.text)
+              ? "harness"
+              : base.authorKind,
         text: capped.text,
         textTruncated: capped.truncated,
       };
@@ -193,4 +208,27 @@ export function parseCodexLine(rawLine: string, ctx: ParseContext): ParseOutcome
     default:
       return { kind: "skipped", reason: `unhandled-payload:${String(payload.type)}` };
   }
+}
+
+function sessionAuthor(payload: CodexPayload): NonNullable<MessageRecord["authorKind"]> {
+  const source = payload.source;
+  if (
+    payload.originator === "codex_exec" ||
+    source === "exec" ||
+    source === "subagent" ||
+    (source && typeof source === "object" && "subagent" in source) ||
+    agentFromSessionMeta(payload)
+  )
+    return "agent";
+  return ["Codex Desktop", "codex_cli_rs", "codex_vscode"].includes(payload.originator ?? "")
+    ? "human"
+    : "unattributed";
+}
+
+function stripInjectedCodexText(text: string): string {
+  return text
+    .replace(/# AGENTS\.md instructions for [^\n]*\n+<INSTRUCTIONS\b[\s\S]*?<\/INSTRUCTIONS>/gi, "")
+    .replace(/<user_instructions\b[\s\S]*?<\/user_instructions>/gi, "")
+    .replace(/<environment_context\b[\s\S]*?<\/environment_context>/gi, "")
+    .trim();
 }
