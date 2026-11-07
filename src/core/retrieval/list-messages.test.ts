@@ -71,3 +71,51 @@ it("reports malformed timestamps instead of silently dropping those rows", () =>
   });
   db.close();
 });
+
+it("an ingestion cursor retrieves a late older message and metadata reindex without changing source time", () => {
+  const db = openStore(":memory:");
+  const message = {
+    messageId: "newer",
+    sourceFileId: "sf",
+    sessionId: "s",
+    uuid: "u",
+    parentUuid: null,
+    seq: 0,
+    role: "user" as const,
+    timestamp: "2026-11-07T02:00:00Z",
+    project: "/company",
+    branch: null,
+    model: null,
+    agent: null,
+    skill: null,
+    text: "newer words",
+    textTruncated: false,
+  };
+  upsertMessage(db, message);
+  const first = listMessages(db, { role: "user", since: "2026-11-01T00:00:00Z", afterIndex: 0 });
+  upsertMessage(db, {
+    ...message,
+    messageId: "late",
+    uuid: "late",
+    timestamp: "2026-11-07T01:00:00Z",
+    text: "older words indexed later",
+  });
+  const second = listMessages(db, {
+    role: "user",
+    since: "2026-11-01T00:00:00Z",
+    afterIndex: first.snapshotIndex,
+  });
+  expect(second.messages.map((row) => [row.messageId, row.timestamp])).toEqual([
+    ["late", "2026-11-07T01:00:00Z"],
+  ]);
+  upsertMessage(db, { ...message, authorKind: "human" });
+  const third = listMessages(db, {
+    role: "user",
+    since: "2026-11-01T00:00:00Z",
+    afterIndex: second.snapshotIndex,
+  });
+  expect(third.messages).toHaveLength(1);
+  expect(third.messages[0]).toMatchObject({ messageId: "newer", authorKind: "human" });
+  expect(third.epoch).toBe(first.epoch);
+  db.close();
+});

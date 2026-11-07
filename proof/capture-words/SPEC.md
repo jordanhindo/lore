@@ -13,3 +13,18 @@ its company roots and capture floor are explicitly configured.
 
 This branch implements L1 and Claude parser metadata from L2. Persistence, Codex,
 L3 and company integration remain.
+
+## Builder repair: late-indexed messages
+
+A source-time-only checkpoint loses a message indexed after capture has passed
+its original timestamp. The existing sync agents are asynchronous, so this is a
+real boundary of R-01's no-loss outcome. Add an optional ingestion cursor to the
+Lore listing while retaining its default chronological contract and original
+message timestamps. A current-entry change sequence plus store epoch identifies
+newly indexed or reindexed messages; snapshot-bounded pages must not skip a late
+arrival. Compass uses this cursor with the fixed capture floor and retains the
+source-time watermark for display/T3 activity selection. This is a builder
+technical default, not a founder ruling.
+
+Proof seams: listMessages/CLI delta pages, late older-message insertion,
+reindex of an existing message, snapshot paging, and capture checkpoint replay.

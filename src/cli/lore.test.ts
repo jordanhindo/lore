@@ -1683,3 +1683,34 @@ it("messages CLI lists full authored text and provenance without keyword search"
     nextCursor: null,
   });
 });
+
+it("messages CLI uses an ingestion cursor to include a newly indexed older turn", async () => {
+  let db = openStore(dbPath);
+  pushRecords(db, VALID_PUSH_BATCH);
+  db.close();
+  const args = ["messages", "--role", "user", "--since", "2026-01-01T00:00:00Z", "--json"];
+  const first = await runCaptured([...args, "--after-index", "0"]);
+  expect(first.code).toBe(0);
+  const page = JSON.parse(first.stdout);
+  expect(Number.isSafeInteger(page.snapshotIndex)).toBe(true);
+  db = openStore(dbPath);
+  pushRecords(db, {
+    ...VALID_PUSH_BATCH,
+    messages: [
+      {
+        ...VALID_PUSH_BATCH.messages[0],
+        messageId: "late-cli",
+        uuid: "late",
+        seq: 1,
+        timestamp: "2026-05-09T00:00:00.000Z",
+        text: "late words",
+      },
+    ],
+  });
+  db.close();
+  const second = await runCaptured([...args, "--after-index", String(page.snapshotIndex)]);
+  expect(second.code).toBe(0);
+  expect(
+    JSON.parse(second.stdout).messages.map((row: { messageId: string }) => row.messageId),
+  ).toEqual(["late-cli"]);
+});

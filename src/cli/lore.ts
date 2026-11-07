@@ -461,6 +461,10 @@ export async function runCli(argv: string[]): Promise<number> {
           since,
           role,
           afterId: value("--after-id"),
+          afterIndex:
+            value("--after-index") === undefined ? undefined : Number(value("--after-index")),
+          throughIndex:
+            value("--through-index") === undefined ? undefined : Number(value("--through-index")),
           limit: value("--limit") === undefined ? 100 : Number(value("--limit")),
         }),
       );

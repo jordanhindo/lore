@@ -5,13 +5,23 @@ export interface ListMessagesOptions {
   since: string;
   afterId?: string;
   limit?: number;
+  afterIndex?: number;
+  throughIndex?: number;
 }
 export function listMessages(
   db: Store,
   opts: ListMessagesOptions,
 ): {
   messages: MessageDetail[];
-  nextCursor: { timestamp: string; messageId: string } | null;
+  nextCursor: {
+    timestamp: string;
+    messageId: string;
+    index?: number;
+    throughIndex?: number;
+  } | null;
+  snapshotIndex?: number;
+  epoch?: string;
+  indexReset?: boolean;
   gaps: { reason: string; id: string; project: string | null }[];
   malformedCount: number;
 } {
@@ -24,6 +34,68 @@ export function listMessages(
     !["user", "assistant", "system"].includes(opts.role)
   )
     throw new Error("invalid messages arguments");
+  if (opts.afterIndex !== undefined) {
+    const head = (
+      db
+        .prepare(
+          "SELECT COALESCE((SELECT seq FROM sqlite_sequence WHERE name='message_ingestions'),0) AS value",
+        )
+        .get() as { value: number }
+    ).value;
+    const snapshotIndex = opts.throughIndex ?? head;
+    const epoch = (
+      db.prepare("SELECT epoch FROM capture_cursor_meta WHERE id=1").get() as { epoch: string }
+    ).epoch;
+    if (
+      !Number.isSafeInteger(opts.afterIndex) ||
+      opts.afterIndex < 0 ||
+      !Number.isSafeInteger(snapshotIndex) ||
+      snapshotIndex < 0 ||
+      snapshotIndex > head
+    )
+      throw new Error("invalid ingestion cursor");
+    if (opts.afterIndex > snapshotIndex)
+      return {
+        messages: [],
+        nextCursor: null,
+        gaps: [],
+        malformedCount: 0,
+        snapshotIndex,
+        epoch,
+        indexReset: true,
+      };
+    const changes = db
+      .prepare(
+        "SELECT message_id AS id,source_timestamp AS timestamp,sequence FROM message_ingestions WHERE role=? AND sequence>? AND sequence<=? AND (source_timestamp>=? OR source_timestamp IS NULL) ORDER BY sequence LIMIT ?",
+      )
+      .all(opts.role, opts.afterIndex, snapshotIndex, opts.since, limit + 1) as {
+      id: string;
+      timestamp: string | null;
+      sequence: number;
+    }[];
+    const selected = changes.slice(0, limit),
+      last = selected.at(-1);
+    const messages = selected
+      .map((row) => getMessage(db, row.id, { full: true }))
+      .filter((row): row is MessageDetail => row !== null)
+      .map((row) => ({ ...row, uuid: row.nativeUuid ?? row.uuid }));
+    return {
+      messages,
+      nextCursor:
+        changes.length > limit && last
+          ? {
+              timestamp: last.timestamp ?? opts.since,
+              messageId: last.id,
+              index: last.sequence,
+              throughIndex: snapshotIndex,
+            }
+          : null,
+      snapshotIndex,
+      epoch,
+      gaps: [],
+      malformedCount: messages.filter((row) => row.timestamp === null).length,
+    };
+  }
   const rows = db
     .prepare(
       `SELECT message_id AS id, timestamp FROM messages
