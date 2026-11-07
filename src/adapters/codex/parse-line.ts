@@ -60,9 +60,23 @@ function stringifyOutput(output: unknown): string {
 
 function parseJsonLine(
   rawLine: string,
-): { type?: string; timestamp?: string; payload?: CodexPayload } | null {
+): {
+  type?: string;
+  timestamp?: string;
+  id?: string;
+  uuid?: string;
+  item_id?: string;
+  payload?: CodexPayload;
+} | null {
   try {
-    return JSON.parse(rawLine) as { type?: string; timestamp?: string; payload?: CodexPayload };
+    return JSON.parse(rawLine) as {
+      type?: string;
+      timestamp?: string;
+      id?: string;
+      uuid?: string;
+      item_id?: string;
+      payload?: CodexPayload;
+    };
   } catch {
     return null;
   }
@@ -126,7 +140,10 @@ export function parseCodexLine(rawLine: string, ctx: ParseContext): ParseOutcome
     messageId,
     sourceFileId: ctx.sourceFileId,
     sessionId: ctx.sessionId,
-    uuid: "",
+    uuid:
+      [parsed.id, parsed.uuid, parsed.item_id].find(
+        (value) => typeof value === "string" && value.trim(),
+      ) ?? `codex-line-${ctx.seq + 1}`,
     parentUuid: null,
     seq: ctx.seq,
     timestamp,

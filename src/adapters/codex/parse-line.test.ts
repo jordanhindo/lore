@@ -196,3 +196,16 @@ describe("Codex authorship", () => {
     expect(result.parsed.message).toMatchObject({ authorKind: "harness" });
   });
 });
+
+it("retains the native Codex id and supplies the Compass line identity when absent", () => {
+  const line = {
+    type: "response_item",
+    payload: { type: "message", role: "user", content: [{ type: "input_text", text: "words" }] },
+  };
+  const native = parseCodexLine(JSON.stringify({ ...line, uuid: "native-turn" }), ctx);
+  const positional = parseCodexLine(JSON.stringify(line), ctx);
+  if (native.kind !== "parsed" || positional.kind !== "parsed")
+    throw new Error("expected messages");
+  expect(native.parsed.message.uuid).toBe("native-turn");
+  expect(positional.parsed.message.uuid).toBe("codex-line-4");
+});
