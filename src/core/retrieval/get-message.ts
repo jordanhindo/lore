@@ -4,6 +4,7 @@ import { elide } from "../budget.js";
 export interface MessageDetail {
   messageId: string;
   sourceFileId: string;
+  source: string | null;
   sessionId: string;
   uuid: string;
   parentUuid: string | null;
@@ -28,6 +29,7 @@ export interface GetMessageOptions {
 interface MessageRow {
   message_id: string;
   source_file_id: string;
+  source: string | null;
   session_id: string;
   uuid: string;
   parent_uuid: string | null;
@@ -56,7 +58,8 @@ export function getMessage(
   const row = db
     .prepare(
       `SELECT message_id, source_file_id, session_id, uuid, parent_uuid, seq, role,
-              timestamp, project, branch, model, agent, text, text_truncated, author_kind, entrypoint
+              timestamp, project, branch, model, agent, text, text_truncated, author_kind, entrypoint,
+              (SELECT source FROM source_files sf WHERE sf.source_file_id = messages.source_file_id) AS source
          FROM messages WHERE message_id = ?`,
     )
     .get(messageId) as MessageRow | undefined;
@@ -65,6 +68,7 @@ export function getMessage(
   return {
     messageId: row.message_id,
     sourceFileId: row.source_file_id,
+    source: row.source,
     sessionId: row.session_id,
     uuid: row.uuid,
     parentUuid: row.parent_uuid,

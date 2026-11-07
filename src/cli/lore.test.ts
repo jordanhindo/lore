@@ -1670,7 +1670,13 @@ it("messages CLI lists full authored text and provenance without keyword search"
   expect(result.code).toBe(0);
   expect(JSON.parse(result.stdout)).toMatchObject({
     messages: [
-      { messageId: "mp1", text: "pushed alamo content", authorKind: null, entrypoint: null },
+      {
+        messageId: "mp1",
+        source: "claude-code",
+        text: "pushed alamo content",
+        authorKind: null,
+        entrypoint: null,
+      },
     ],
     nextCursor: null,
   });
