@@ -1,39 +1,19 @@
-# Capture words progress
+# Capture words — Lore builder handoff
 
-Implemented test-first: Claude queued-command attachments retain their UUID and
-exact text; Claude parser emits authorKind and entrypoint, with conservative
-harness, agent and unattributed cases. Two RED/GREEN cycles are saved locally.
-Full npm run check passed: 48 files, 424 tests, typecheck, lint and formatting.
+PR: https://github.com/jordanhindo/lore/pull/24
 
-Incomplete: persistence/migration of fields, Codex authorship, chronological
-messages listing, bounded reindex, and all company integration/proof. Optional
-record fields currently exist only at the Claude parser boundary. This is not
-R-02 completion and must not merge as the capture-words implementation.
+Implemented R-02: queued-command indexing (including nested attachment prompt/origin), authorKind and entrypoint persistence, full-text chronological messages listing, bounded company reindex, and freshness diagnostics. Native Codex message/session identities are exposed without changing historical Lore keys. An ingestion cursor makes late arrivals and metadata reindex visible after a timestamp checkpoint; schema migration preserves existing rows and read-only retrieval compatibility.
 
-Review: read actual source diff locally against base 7d10369. No independent
-review was run because this task expressly forbids delegation. Standards:
-synthetic fixtures only; existing adapter seam reused. Spec: the omissions above
-remain blocking findings for feature completion.
+Verification on code head 8605dc41f56759b33b047f8cbd8618ed00ef2ed9: typecheck, 197 affected tests in 15 files, and build passed on 2026-11-07. The earlier full suite passed 434 tests; it is not claimed as a final-head full run. The operator reserves the full matrix for merge. Real bounded reindex recovered the previously absent queued message in an isolated Lore database.
 
-Next: test persistence through upsertMessage/getMessage including legacy rows;
-add schema migration and field bindings. Then Codex provenance and L3 listing.
-Lore original checkout remains on main; company checkout has no edits.
+Original /Users/jordanhindo/lore checkout remains untouched on main. No merge or live reindex was performed. This worktree initially reused node_modules via a symlink; no install was run through that link. A later install must replace the link with worktree-owned dependencies first.
 
-Skill change: none proposed.
+Company integration and its real Jev classification proof are tracked in company PR 247. Lore supplies source data; passing parser/retrieval tests does not establish Jev classification accuracy.
 
-## Follow-up
+## Lessons and proposed skill changes
 
-Persistence is now implemented through schema migration 6, upsert and getMessage,
-including legacy null fields; targeted retrieval/migration tests and typecheck
-passed (commit 22893a7). Codex session authorship and injected-only exclusion now
-pass 15 adapter tests and typecheck (commit 19e3a32). Listing remains pending.
+TDD: add a reminder that native identity and retrieval identity can differ. Compatibility tests must preserve existing lookup keys while checking the newly exposed native identity against the source adapter.
 
-Confirmed spec conflict in company R-05: packetFromCodexRecord trims text, but
-Lore retains it exactly. A synthetic public captureNative reproduction with the
-same native id and text `  keep these words  ` first buffered the existing
-adapter packet (`keep these words`), then attempted the Lore-byte packet. Intake
-raised operation-conflict. sameNativeAsk requires prior.text === next.text.
-Thus exact Lore bytes and replay of every prior admission cannot both hold with
-PR 215 admission unchanged. Resolution needs a policy for retaining both the
-prior immutable admission and the newly observed exact bytes; silently trimming
-Lore would violate the exact-byte requirement. No live record or secrets read.
+Real transcript fixtures should retain structural variants (nested attachment origin/prompt, blank lines, session metadata), with synthetic text. Bounded reindex must stream large files rather than read an entire transcript into one string.
+
+No independent review was delegated, per the task restriction. PR remains unmerged.
