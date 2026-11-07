@@ -261,3 +261,29 @@ describe("Claude author provenance", () => {
     });
   });
 });
+
+it("indexes the desktop queued-command prompt with nested human provenance", () => {
+  const outcome = parseLine(
+    JSON.stringify({
+      type: "attachment",
+      uuid: "queued-desktop",
+      entrypoint: "claude-desktop",
+      timestamp: "2026-11-07T01:00:00Z",
+      attachment: {
+        type: "queued_command",
+        prompt: "  synthetic mid-turn words\n ",
+        origin: { kind: "human" },
+        source_uuid: "original-user",
+        delivery_id: "delivery",
+        humanTurn: true,
+      },
+    }),
+    { ...baseCtx, seq: 8 },
+  );
+  if (outcome.kind !== "parsed") throw new Error(outcome.reason);
+  expect(outcome.parsed.message).toMatchObject({
+    uuid: "queued-desktop",
+    text: "  synthetic mid-turn words\n ",
+    authorKind: "human",
+  });
+});

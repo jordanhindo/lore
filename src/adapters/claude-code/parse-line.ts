@@ -103,7 +103,7 @@ export function parseLine(rawLine: string, ctx: ParseContext): ParseOutcome {
   const agent = typeof parsed["agentId"] === "string" ? (parsed["agentId"] as string) : null;
 
   const rawContent = queued
-    ? attachment?.["content"]
+    ? (attachment?.["content"] ?? attachment?.["prompt"])
     : messageBlock
       ? messageBlock["content"]
       : parsed["content"];
@@ -129,7 +129,7 @@ export function parseLine(rawLine: string, ctx: ParseContext): ParseOutcome {
     text: capped.text,
     textTruncated: capped.truncated,
     entrypoint: typeof parsed["entrypoint"] === "string" ? parsed["entrypoint"] : null,
-    authorKind: authorKind(parsed, rawContent),
+    authorKind: authorKind(parsed, rawContent, queued ? attachment?.["origin"] : undefined),
   };
 
   const toolCalls = extractToolCalls(rawContent, ctx, messageId, maxChars);
@@ -199,9 +199,10 @@ function extractToolCalls(
 function authorKind(
   row: Record<string, unknown>,
   content: unknown,
+  queuedOrigin?: unknown,
 ): NonNullable<MessageRecord["authorKind"]> {
   if (row["agentId"] || row["entrypoint"] === "sdk-cli") return "agent";
-  const origin = row["origin"] as { kind?: string } | undefined;
+  const origin = (row["origin"] ?? queuedOrigin) as { kind?: string } | undefined;
   if (
     row["isCompactSummary"] ||
     row["isMeta"] ||
