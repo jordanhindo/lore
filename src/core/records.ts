@@ -112,6 +112,7 @@ export const messageRecordSchema = z.object({
   sourceFileId: z.string().min(1),
   sessionId: z.string().min(1),
   uuid: z.string(),
+  nativeUuid: z.string().nullable().optional(),
   parentUuid: z.string().nullable(),
   /** Zero-based line index within the source file. */
   seq: z.number().int().nonnegative(),

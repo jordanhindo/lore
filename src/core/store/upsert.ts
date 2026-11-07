@@ -51,19 +51,20 @@ export function upsertMessage(db: Store, rec: MessageRecord): void {
   db.prepare(
     `INSERT INTO messages
        (message_id, source_file_id, session_id, uuid, parent_uuid, seq, role,
-        timestamp, project, branch, model, agent, skill, text, text_truncated, content_hash, author_kind, entrypoint)
+        timestamp, project, branch, model, agent, skill, text, text_truncated, content_hash, author_kind, entrypoint, native_uuid)
      VALUES
        (@messageId, @sourceFileId, @sessionId, @uuid, @parentUuid, @seq, @role,
-        @timestamp, @project, @branch, @model, @agent, @skill, @text, @textTruncated, @contentHash, @authorKind, @entrypoint)
+        @timestamp, @project, @branch, @model, @agent, @skill, @text, @textTruncated, @contentHash, @authorKind, @entrypoint, @nativeUuid)
      ON CONFLICT(message_id) DO UPDATE SET
        source_file_id=excluded.source_file_id, session_id=excluded.session_id,
        uuid=excluded.uuid, parent_uuid=excluded.parent_uuid, seq=excluded.seq,
        role=excluded.role, timestamp=excluded.timestamp, project=excluded.project,
        branch=excluded.branch, model=excluded.model, agent=excluded.agent,
        skill=excluded.skill, text=excluded.text, text_truncated=excluded.text_truncated,
-       content_hash=excluded.content_hash, author_kind=excluded.author_kind, entrypoint=excluded.entrypoint`,
+       content_hash=excluded.content_hash, author_kind=excluded.author_kind, entrypoint=excluded.entrypoint, native_uuid=excluded.native_uuid`,
   ).run({
     ...rec,
+    nativeUuid: rec.nativeUuid ?? null,
     authorKind: rec.authorKind ?? null,
     entrypoint: rec.entrypoint ?? null,
     textTruncated: rec.textTruncated ? 1 : 0,

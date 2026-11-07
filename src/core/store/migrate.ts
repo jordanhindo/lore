@@ -86,6 +86,7 @@ const MIGRATIONS: { to: number; up: (db: DatabaseType.Database) => void }[] = [
       db.exec(`
     ALTER TABLE messages ADD COLUMN author_kind TEXT;
     ALTER TABLE messages ADD COLUMN entrypoint TEXT;
+    ALTER TABLE messages ADD COLUMN native_uuid TEXT;
   `),
   },
 ];

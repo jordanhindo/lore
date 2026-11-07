@@ -9,6 +9,7 @@ export interface MessageDetail {
   lastTimestamp: string | null;
   sessionId: string;
   uuid: string;
+  nativeUuid?: string | null;
   parentUuid: string | null;
   seq: number;
   role: string;
@@ -36,6 +37,7 @@ interface MessageRow {
   last_timestamp: string | null;
   session_id: string;
   uuid: string;
+  native_uuid: string | null;
   parent_uuid: string | null;
   seq: number;
   role: string;
@@ -62,7 +64,7 @@ export function getMessage(
   const row = db
     .prepare(
       `SELECT message_id, source_file_id, session_id, uuid, parent_uuid, seq, role,
-              timestamp, project, branch, model, agent, text, text_truncated, author_kind, entrypoint,
+              timestamp, project, branch, model, agent, text, text_truncated, author_kind, entrypoint, native_uuid,
               (SELECT source FROM source_files sf WHERE sf.source_file_id = messages.source_file_id) AS source,
               (SELECT path FROM source_files sf WHERE sf.source_file_id = messages.source_file_id) AS source_path,
               (SELECT last_timestamp FROM sessions s WHERE s.session_id = messages.session_id) AS last_timestamp
@@ -79,6 +81,7 @@ export function getMessage(
     lastTimestamp: row.last_timestamp,
     sessionId: row.session_id,
     uuid: row.uuid,
+    nativeUuid: row.native_uuid,
     parentUuid: row.parent_uuid,
     seq: row.seq,
     role: row.role,

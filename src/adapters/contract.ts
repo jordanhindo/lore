@@ -101,6 +101,7 @@ export interface LineMapper {
 
 /** Per-line context the line helper threads into `parseLine`. */
 export interface ParseContext {
+  nativeLineNumber?: number;
   sourceFileId: string;
   sessionId: string;
   seq: number;

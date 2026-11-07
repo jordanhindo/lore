@@ -58,9 +58,7 @@ function stringifyOutput(output: unknown): string {
   return JSON.stringify(output);
 }
 
-function parseJsonLine(
-  rawLine: string,
-): {
+function parseJsonLine(rawLine: string): {
   type?: string;
   timestamp?: string;
   id?: string;
@@ -140,10 +138,11 @@ export function parseCodexLine(rawLine: string, ctx: ParseContext): ParseOutcome
     messageId,
     sourceFileId: ctx.sourceFileId,
     sessionId: ctx.sessionId,
-    uuid:
+    nativeUuid:
       [parsed.id, parsed.uuid, parsed.item_id].find(
         (value) => typeof value === "string" && value.trim(),
-      ) ?? `codex-line-${ctx.seq + 1}`,
+      ) ?? `codex-line-${ctx.nativeLineNumber ?? ctx.seq + 1}`,
+    uuid: "",
     parentUuid: null,
     seq: ctx.seq,
     timestamp,

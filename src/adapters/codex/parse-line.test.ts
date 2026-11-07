@@ -206,6 +206,43 @@ it("retains the native Codex id and supplies the Compass line identity when abse
   const positional = parseCodexLine(JSON.stringify(line), ctx);
   if (native.kind !== "parsed" || positional.kind !== "parsed")
     throw new Error("expected messages");
-  expect(native.parsed.message.uuid).toBe("native-turn");
-  expect(positional.parsed.message.uuid).toBe("codex-line-4");
+  expect(native.parsed.message.nativeUuid).toBe("native-turn");
+  expect(positional.parsed.message.nativeUuid).toBe("codex-line-4");
+});
+
+it("matches Compass native line identities when a transcript contains blank lines", async () => {
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { codexAdapter } = await import("./adapter.js");
+  const dir = await mkdtemp(join(tmpdir(), "lore-native-lines-"));
+  try {
+    const path = join(dir, "session.jsonl");
+    await writeFile(
+      path,
+      [
+        JSON.stringify({
+          type: "session_meta",
+          payload: { originator: "Codex Desktop", source: "cli" },
+        }),
+        "",
+        JSON.stringify({
+          type: "response_item",
+          payload: {
+            type: "message",
+            role: "user",
+            content: [{ type: "input_text", text: "synthetic words" }],
+          },
+        }),
+        "",
+      ].join("\n"),
+    );
+    const result = await codexAdapter.ingest(
+      { path, kind: "primary", agentFile: null, sessionId: "s" },
+      { sourceFileId: "sf", sessionId: "s", source: "codex", priorToken: null },
+    );
+    expect(result.messages[0]?.nativeUuid).toBe("codex-line-2");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

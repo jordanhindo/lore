@@ -32,7 +32,10 @@ export function listMessages(
   const selected = rows.slice(0, limit);
   const last = selected.at(-1);
   return {
-    messages: selected.map((row) => getMessage(db, row.id, { full: true })!),
+    messages: selected.map((row) => {
+      const message = getMessage(db, row.id, { full: true })!;
+      return { ...message, uuid: message.nativeUuid ?? message.uuid };
+    }),
     nextCursor:
       rows.length > limit && last ? { timestamp: last.timestamp, messageId: last.id } : null,
   };
