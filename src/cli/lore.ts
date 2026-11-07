@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { listMessages } from "../core/retrieval/list-messages.js";
 import { existsSync } from "node:fs";
 import { isMainModule } from "./is-main.js";
 import { openStore, openStoreReadonly, type Store } from "../core/store/open-store.js";
@@ -438,6 +439,34 @@ export async function runCli(argv: string[]): Promise<number> {
       } finally {
         db?.close();
       }
+    }
+    case "messages": {
+      const value = (name: string) => {
+        const at = rest.indexOf(name);
+        return at < 0 ? undefined : rest[at + 1];
+      };
+      const since = value("--since"),
+        role = value("--role");
+      if (!since || !role) {
+        process.stderr.write("messages requires --since and --role\n");
+        return 1;
+      }
+      const dbPath = resolveDbPath();
+      if (!existsSync(dbPath)) {
+        missingStore(dbPath);
+        return 1;
+      }
+      const result = withReadonlyStore(dbPath, (db) =>
+        listMessages(db, {
+          since,
+          role,
+          afterId: value("--after-id"),
+          limit: value("--limit") === undefined ? 100 : Number(value("--limit")),
+        }),
+      );
+      if (!result.ok) return 1;
+      process.stdout.write(JSON.stringify(result.value) + "\n");
+      return 0;
     }
     case "sessions": {
       const { opts, json } = parseSessionsArgs(rest);

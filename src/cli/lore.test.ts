@@ -1652,3 +1652,26 @@ describe("lore forget / exclude CLI", () => {
     expect(code).toBe(1);
   });
 });
+
+it("messages CLI lists full authored text and provenance without keyword search", async () => {
+  const db = openStore(dbPath);
+  pushRecords(db, VALID_PUSH_BATCH);
+  db.close();
+  const result = await runCaptured([
+    "messages",
+    "--role",
+    "user",
+    "--since",
+    "2026-01-01T00:00:00Z",
+    "--limit",
+    "1",
+    "--json",
+  ]);
+  expect(result.code).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    messages: [
+      { messageId: "mp1", text: "pushed alamo content", authorKind: null, entrypoint: null },
+    ],
+    nextCursor: null,
+  });
+});
