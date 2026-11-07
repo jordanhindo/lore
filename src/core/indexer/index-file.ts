@@ -1,5 +1,7 @@
 import { basename, relative, resolve, isAbsolute } from "node:path";
-import { stat, readFile, realpath } from "node:fs/promises";
+import { stat, realpath } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { createInterface } from "node:readline";
 import { codexAdapter } from "../../adapters/codex/adapter.js";
 import type { Store } from "../store/open-store.js";
 import { writeRecordBatch } from "../store/write-records.js";
@@ -204,17 +206,24 @@ export async function reindexRecentCompanyFiles(
   for (const file of files) {
     if ((await stat(file.path)).mtimeMs < floor) continue;
     let company = false;
-    for (const line of (await readFile(file.path, "utf8")).split("\n")) {
-      let row;
-      try {
-        row = JSON.parse(line);
-      } catch {
-        continue;
+    const stream = createReadStream(file.path, { encoding: "utf8" });
+    const lines = createInterface({ input: stream, crlfDelay: Infinity });
+    try {
+      for await (const line of lines) {
+        let row;
+        try {
+          row = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (await within(row.cwd ?? row.payload?.cwd)) {
+          company = true;
+          break;
+        }
       }
-      if (await within(row.cwd ?? row.payload?.cwd)) {
-        company = true;
-        break;
-      }
+    } finally {
+      lines.close();
+      stream.destroy();
     }
     if (!company) continue;
     const adapter = file.source === "codex" ? codexAdapter : claudeCodeAdapter;
