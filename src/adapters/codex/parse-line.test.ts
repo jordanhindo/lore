@@ -246,3 +246,10 @@ it("matches Compass native line identities when a transcript contains blank line
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+it("marks T3 Code sessions unattributed with the shared T3 confirmation entrypoint", () => {
+  const metadata = getCodexFileMetadata([
+    JSON.stringify({ type: "session_meta", payload: { originator: "T3 Code", source: "cli" } }),
+  ]);
+  expect(metadata).toMatchObject({ authorKind: "unattributed", entrypoint: "t3-code" });
+});

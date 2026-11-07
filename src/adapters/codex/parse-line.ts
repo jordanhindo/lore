@@ -102,7 +102,7 @@ export function getCodexFileMetadata(rawLines: string[]): FileMetadata {
       agent: agentFromSessionMeta(payload),
       ...(typeof payload.originator === "string"
         ? {
-            entrypoint: payload.originator,
+            entrypoint: payload.originator === "T3 Code" ? "t3-code" : payload.originator,
             authorKind: sessionAuthor(payload),
           }
         : {}),
