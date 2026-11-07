@@ -38,14 +38,12 @@ export function listMessages(
   const last = selected.at(-1);
   const malformed = db
     .prepare(
-      "SELECT message_id AS id,project FROM messages WHERE role=? AND (timestamp IS NULL OR julianday(timestamp) IS NULL) ORDER BY message_id LIMIT ?",
+      "SELECT message_id AS id,project FROM messages WHERE role=? AND timestamp IS NULL ORDER BY message_id LIMIT ?",
     )
     .all(opts.role, limit) as { id: string; project: string | null }[];
   const malformedCount = (
     db
-      .prepare(
-        "SELECT COUNT(*) AS total FROM messages WHERE role=? AND (timestamp IS NULL OR julianday(timestamp) IS NULL)",
-      )
+      .prepare("SELECT COUNT(*) AS total FROM messages WHERE role=? AND timestamp IS NULL")
       .get(opts.role) as { total: number }
   ).total;
   return {
