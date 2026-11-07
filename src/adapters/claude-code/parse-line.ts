@@ -69,7 +69,14 @@ export function parseLine(rawLine: string, ctx: ParseContext): ParseOutcome {
     return { kind: "skipped", reason: "json-parse-error" };
   }
 
-  const type = parsed["type"];
+  const attachment =
+    parsed["type"] === "attachment" &&
+    parsed["attachment"] &&
+    typeof parsed["attachment"] === "object"
+      ? (parsed["attachment"] as Record<string, unknown>)
+      : null;
+  const queued = attachment?.["type"] === "queued_command";
+  const type = queued ? "user" : parsed["type"];
   if (typeof type !== "string" || !PARSEABLE_ROLES.has(type as MessageRole)) {
     return { kind: "skipped", reason: `unhandled-type:${String(type)}` };
   }
@@ -95,7 +102,11 @@ export function parseLine(rawLine: string, ctx: ParseContext): ParseOutcome {
 
   const agent = typeof parsed["agentId"] === "string" ? (parsed["agentId"] as string) : null;
 
-  const rawContent = messageBlock ? messageBlock["content"] : parsed["content"];
+  const rawContent = queued
+    ? attachment?.["content"]
+    : messageBlock
+      ? messageBlock["content"]
+      : parsed["content"];
   const capped = cap(extractText(rawContent), maxChars);
   const skill = extractSkill(rawContent);
 
@@ -117,6 +128,8 @@ export function parseLine(rawLine: string, ctx: ParseContext): ParseOutcome {
     skill,
     text: capped.text,
     textTruncated: capped.truncated,
+    entrypoint: typeof parsed["entrypoint"] === "string" ? parsed["entrypoint"] : null,
+    authorKind: authorKind(parsed, rawContent),
   };
 
   const toolCalls = extractToolCalls(rawContent, ctx, messageId, maxChars);
@@ -181,4 +194,21 @@ function extractToolCalls(
     }
   }
   return calls;
+}
+
+function authorKind(
+  row: Record<string, unknown>,
+  content: unknown,
+): NonNullable<MessageRecord["authorKind"]> {
+  if (row["agentId"] || row["entrypoint"] === "sdk-cli") return "agent";
+  const origin = row["origin"] as { kind?: string } | undefined;
+  if (
+    row["isCompactSummary"] ||
+    row["isMeta"] ||
+    (Array.isArray(content) && content.some((block) => block?.type === "tool_result")) ||
+    (origin?.kind && origin.kind !== "human")
+  )
+    return "harness";
+  if (row["entrypoint"] === "t3-code") return "unattributed";
+  return origin?.kind === "human" ? "human" : "unattributed";
 }
