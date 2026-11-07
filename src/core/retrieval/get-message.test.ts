@@ -54,3 +54,32 @@ describe("getMessage", () => {
     expect(detail?.role).toBe("assistant");
   });
 });
+
+// Confirmed seams: persisted message retrieval and legacy admission, SPEC R-02 L2.
+it("round trips authorship and entrypoint while older admissions remain unattributed", () => {
+  const db = openStore(":memory:");
+  upsertMessage(db, msg({ messageId: "legacy", text: "old" }));
+  upsertMessage(
+    db,
+    msg({ messageId: "human", text: "new", authorKind: "human", entrypoint: "claude-desktop" }),
+  );
+  expect(getMessage(db, "legacy")).toMatchObject({ authorKind: null, entrypoint: null });
+  expect(getMessage(db, "human")).toMatchObject({
+    authorKind: "human",
+    entrypoint: "claude-desktop",
+  });
+  upsertMessage(
+    db,
+    msg({
+      messageId: "human",
+      text: "reindexed",
+      authorKind: "unattributed",
+      entrypoint: "t3-code",
+    }),
+  );
+  expect(getMessage(db, "human")).toMatchObject({
+    authorKind: "unattributed",
+    entrypoint: "t3-code",
+  });
+  db.close();
+});

@@ -16,6 +16,8 @@ export interface MessageDetail {
   agent: string | null;
   text: string;
   textTruncated: boolean;
+  authorKind: string | null;
+  entrypoint: string | null;
 }
 
 export interface GetMessageOptions {
@@ -38,6 +40,8 @@ interface MessageRow {
   agent: string | null;
   text: string;
   text_truncated: number;
+  author_kind: string | null;
+  entrypoint: string | null;
 }
 
 /**
@@ -52,7 +56,7 @@ export function getMessage(
   const row = db
     .prepare(
       `SELECT message_id, source_file_id, session_id, uuid, parent_uuid, seq, role,
-              timestamp, project, branch, model, agent, text, text_truncated
+              timestamp, project, branch, model, agent, text, text_truncated, author_kind, entrypoint
          FROM messages WHERE message_id = ?`,
     )
     .get(messageId) as MessageRow | undefined;
@@ -73,5 +77,7 @@ export function getMessage(
     agent: row.agent,
     text: opts.full ? row.text : elide(row.text, row.message_id),
     textTruncated: row.text_truncated === 1,
+    authorKind: row.author_kind,
+    entrypoint: row.entrypoint,
   };
 }

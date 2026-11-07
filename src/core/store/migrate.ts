@@ -5,7 +5,7 @@ import { contentHash } from "./content-hash.js";
  * The schema version this build of lore expects. A fresh store created by
  * `initSchema` is at version 1. Bump this whenever you append a migration step.
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export class StoreSchemaTooNewError extends Error {
   constructor(
@@ -79,6 +79,14 @@ const MIGRATIONS: { to: number; up: (db: DatabaseType.Database) => void }[] = [
       narrowMessageUpdateTrigger(db);
       backfillContentHash(db);
     },
+  },
+  {
+    to: 6,
+    up: (db) =>
+      db.exec(`
+    ALTER TABLE messages ADD COLUMN author_kind TEXT;
+    ALTER TABLE messages ADD COLUMN entrypoint TEXT;
+  `),
   },
 ];
 
