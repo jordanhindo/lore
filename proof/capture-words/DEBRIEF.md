@@ -20,3 +20,20 @@ add schema migration and field bindings. Then Codex provenance and L3 listing.
 Lore original checkout remains on main; company checkout has no edits.
 
 Skill change: none proposed.
+
+## Follow-up
+
+Persistence is now implemented through schema migration 6, upsert and getMessage,
+including legacy null fields; targeted retrieval/migration tests and typecheck
+passed (commit 22893a7). Codex session authorship and injected-only exclusion now
+pass 15 adapter tests and typecheck (commit 19e3a32). Listing remains pending.
+
+Confirmed spec conflict in company R-05: packetFromCodexRecord trims text, but
+Lore retains it exactly. A synthetic public captureNative reproduction with the
+same native id and text `  keep these words  ` first buffered the existing
+adapter packet (`keep these words`), then attempted the Lore-byte packet. Intake
+raised operation-conflict. sameNativeAsk requires prior.text === next.text.
+Thus exact Lore bytes and replay of every prior admission cannot both hold with
+PR 215 admission unchanged. Resolution needs a policy for retaining both the
+prior immutable admission and the newly observed exact bytes; silently trimming
+Lore would violate the exact-byte requirement. No live record or secrets read.
