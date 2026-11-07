@@ -1,4 +1,8 @@
-import { basename } from "node:path";
+import { basename, relative, resolve, isAbsolute } from "node:path";
+import { stat, realpath } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { createInterface } from "node:readline";
+import { codexAdapter } from "../../adapters/codex/adapter.js";
 import type { Store } from "../store/open-store.js";
 import { writeRecordBatch } from "../store/write-records.js";
 import { resumeTokenSchema, type ResumeToken, type SourceFileKind } from "../records.js";
@@ -167,4 +171,73 @@ export async function indexFile(db: Store, opts: IndexFileOptions): Promise<Inde
     toolCalls: result.toolCalls.length,
     skipped: result.skipped,
   };
+}
+
+export async function reindexRecentCompanyFiles(
+  db: Store,
+  options: { since: string; roots: string[] },
+): Promise<{ reindexed: string[] }> {
+  const floor = Date.parse(options.since);
+  if (!Number.isFinite(floor) || !options.roots.length)
+    throw new Error("reindex requires a floor and company roots");
+  const roots = await Promise.all(
+    options.roots.map((root) => realpath(root).catch(() => resolve(root))),
+  );
+  const within = async (cwd: unknown) => {
+    if (typeof cwd !== "string") return false;
+    const absolute = await realpath(cwd).catch(() => resolve(cwd));
+    return roots.some((root) => {
+      const rel = relative(root, absolute);
+      return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+    });
+  };
+  const files = db
+    .prepare(
+      "SELECT path,source,kind,agent_file,session_id FROM source_files WHERE source IN ('claude-code','codex') ORDER BY path",
+    )
+    .all() as {
+    path: string;
+    source: string;
+    kind: SourceFileKind;
+    agent_file: string | null;
+    session_id: string;
+  }[];
+  const reindexed: string[] = [];
+  for (const file of files) {
+    if ((await stat(file.path)).mtimeMs < floor) continue;
+    let company = false;
+    const stream = createReadStream(file.path, { encoding: "utf8" });
+    const lines = createInterface({ input: stream, crlfDelay: Infinity });
+    try {
+      for await (const line of lines) {
+        let row;
+        try {
+          row = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (await within(row.cwd ?? row.payload?.cwd)) {
+          company = true;
+          break;
+        }
+      }
+    } finally {
+      lines.close();
+      stream.destroy();
+    }
+    if (!company) continue;
+    const adapter = file.source === "codex" ? codexAdapter : claudeCodeAdapter;
+    await indexFile(db, {
+      path: file.path,
+      kind: file.kind,
+      agentFile: file.agent_file,
+      sessionId: file.session_id,
+      adapter: {
+        ...adapter,
+        ingest: (file, ctx) => adapter.ingest(file, { ...ctx, priorToken: null }),
+      },
+    });
+    reindexed.push(file.path);
+  }
+  return { reindexed };
 }

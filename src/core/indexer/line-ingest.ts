@@ -78,9 +78,15 @@ export function lineIngest(mapper: LineMapper) {
       seq++;
     }
 
+    const metadataLines = mapper.getFileMetadata ? await readLines(file.path) : [];
     const fileMetadata = mapper.getFileMetadata
-      ? mapper.getFileMetadata(await readNonEmptyLines(file.path), ctx.sourceFileId)
+      ? mapper.getFileMetadata(metadataLines, ctx.sourceFileId)
       : undefined;
+    let nonEmpty = 0;
+    const nativeLines = metadataLines.map((line) => {
+      if (line.trim()) nonEmpty++;
+      return nonEmpty;
+    });
 
     const messages: MessageRecord[] = [];
     const toolCalls: ToolCallRecord[] = [];
@@ -90,6 +96,7 @@ export function lineIngest(mapper: LineMapper) {
         sourceFileId: ctx.sourceFileId,
         sessionId: ctx.sessionId,
         seq: lineSeq,
+        nativeLineNumber: nativeLines[lineSeq],
         source: mapper.source,
         fileMetadata,
         maxTextChars: ctx.maxTextChars,
@@ -123,7 +130,7 @@ export function lineIngest(mapper: LineMapper) {
   };
 }
 
-async function readNonEmptyLines(path: string): Promise<string[]> {
+async function readLines(path: string): Promise<string[]> {
   const content = await readFile(path, "utf8");
-  return content.split("\n").filter((line) => line.trim().length > 0);
+  return content.split("\n");
 }

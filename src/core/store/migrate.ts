@@ -5,7 +5,7 @@ import { contentHash } from "./content-hash.js";
  * The schema version this build of lore expects. A fresh store created by
  * `initSchema` is at version 1. Bump this whenever you append a migration step.
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 8;
 
 export class StoreSchemaTooNewError extends Error {
   constructor(
@@ -80,6 +80,44 @@ const MIGRATIONS: { to: number; up: (db: DatabaseType.Database) => void }[] = [
       backfillContentHash(db);
     },
   },
+  {
+    to: 6,
+    up: (db) =>
+      db.exec(`
+    ALTER TABLE messages ADD COLUMN author_kind TEXT;
+    ALTER TABLE messages ADD COLUMN entrypoint TEXT;
+    ALTER TABLE messages ADD COLUMN native_uuid TEXT;
+  `),
+  },
+  {
+    to: 7,
+    up: (db) =>
+      db.exec(`
+      CREATE TABLE capture_cursor_meta (id INTEGER PRIMARY KEY CHECK(id=1), epoch TEXT NOT NULL);
+      INSERT INTO capture_cursor_meta VALUES(1,lower(hex(randomblob(16))));
+      CREATE TABLE message_ingestions (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id TEXT NOT NULL,
+        source_timestamp TEXT,
+        role TEXT NOT NULL
+      );
+      CREATE INDEX message_ingestions_message ON message_ingestions(message_id);
+      CREATE INDEX message_ingestions_role_sequence ON message_ingestions(role,sequence);
+      INSERT INTO message_ingestions(message_id,source_timestamp,role)
+        SELECT message_id,timestamp,role FROM messages ORDER BY timestamp,message_id;
+      CREATE TRIGGER messages_capture_insert AFTER INSERT ON messages BEGIN
+        INSERT INTO message_ingestions(message_id,source_timestamp,role) VALUES(new.message_id,new.timestamp,new.role);
+      END;
+      CREATE TRIGGER messages_capture_update AFTER UPDATE ON messages BEGIN
+        INSERT INTO message_ingestions(message_id,source_timestamp,role) VALUES(new.message_id,new.timestamp,new.role);
+        DELETE FROM message_ingestions WHERE message_id=new.message_id AND sequence<>last_insert_rowid();
+      END;
+      CREATE TRIGGER messages_capture_delete AFTER DELETE ON messages BEGIN
+        DELETE FROM message_ingestions WHERE message_id=old.message_id;
+      END;
+    `),
+  },
+  { to: 8, up: (db) => db.exec("ALTER TABLE messages ADD COLUMN native_session_id TEXT") },
 ];
 
 function hasColumn(db: DatabaseType.Database, table: string, column: string): boolean {

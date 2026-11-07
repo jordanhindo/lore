@@ -54,3 +54,49 @@ describe("getMessage", () => {
     expect(detail?.role).toBe("assistant");
   });
 });
+
+// Confirmed seams: persisted message retrieval and legacy admission, SPEC R-02 L2.
+it("round trips authorship and entrypoint while older admissions remain unattributed", () => {
+  const db = openStore(":memory:");
+  upsertMessage(db, msg({ messageId: "legacy", text: "old" }));
+  upsertMessage(
+    db,
+    msg({ messageId: "human", text: "new", authorKind: "human", entrypoint: "claude-desktop" }),
+  );
+  expect(getMessage(db, "legacy")).toMatchObject({ authorKind: null, entrypoint: null });
+  expect(getMessage(db, "human")).toMatchObject({
+    authorKind: "human",
+    entrypoint: "claude-desktop",
+  });
+  upsertMessage(
+    db,
+    msg({
+      messageId: "human",
+      text: "reindexed",
+      authorKind: "unattributed",
+      entrypoint: "t3-code",
+    }),
+  );
+  expect(getMessage(db, "human")).toMatchObject({
+    authorKind: "unattributed",
+    entrypoint: "t3-code",
+  });
+  db.close();
+});
+
+it("reads pre-authorship stores without migrating or inventing provenance", async () => {
+  const { default: Database } = await import("better-sqlite3");
+  const { initSchema } = await import("../store/schema.js");
+  const db = new Database(":memory:");
+  initSchema(db);
+  db.prepare(
+    "INSERT INTO messages(message_id,source_file_id,session_id,uuid,seq,role,text) VALUES ('old','file','session','u',0,'user','old words')",
+  ).run();
+  expect(getMessage(db, "old", { full: true })).toMatchObject({
+    text: "old words",
+    authorKind: null,
+    entrypoint: null,
+  });
+  expect(db.pragma("user_version", { simple: true })).toBe(0);
+  db.close();
+});

@@ -112,6 +112,8 @@ export const messageRecordSchema = z.object({
   sourceFileId: z.string().min(1),
   sessionId: z.string().min(1),
   uuid: z.string(),
+  nativeUuid: z.string().nullable().optional(),
+  nativeSessionId: z.string().nullable().optional(),
   parentUuid: z.string().nullable(),
   /** Zero-based line index within the source file. */
   seq: z.number().int().nonnegative(),
@@ -127,6 +129,8 @@ export const messageRecordSchema = z.object({
   /** Human-readable text, size-capped. `textTruncated` flags elision. */
   text: z.string(),
   textTruncated: z.boolean(),
+  authorKind: z.enum(["human", "agent", "harness", "unattributed"]).nullable().optional(),
+  entrypoint: z.string().nullable().optional(),
 });
 export type MessageRecord = z.infer<typeof messageRecordSchema>;
 

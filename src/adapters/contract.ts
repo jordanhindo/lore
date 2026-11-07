@@ -8,6 +8,9 @@ import type {
 } from "../core/records.js";
 
 export interface FileMetadata {
+  nativeSessionId?: string | null;
+  entrypoint?: string | null;
+  authorKind?: MessageRecord["authorKind"];
   project?: string | null;
   branch?: string | null;
   model?: string | null;
@@ -99,6 +102,7 @@ export interface LineMapper {
 
 /** Per-line context the line helper threads into `parseLine`. */
 export interface ParseContext {
+  nativeLineNumber?: number;
   sourceFileId: string;
   sessionId: string;
   seq: number;

@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+import {
+  listMessages,
+  messageCoverageSources,
+  messageCoverageGaps,
+} from "../core/retrieval/list-messages.js";
 import { existsSync } from "node:fs";
 import { isMainModule } from "./is-main.js";
 import { openStore, openStoreReadonly, type Store } from "../core/store/open-store.js";
@@ -103,6 +108,10 @@ Usage:
   lore sessions [filters] [--json]
                                      List session rollups (newest first). Filters:
                                      --project --source --since --until --limit
+  lore messages --role user --since <timestamp> [--limit N] [--json]
+                                     Full stored text with provenance. Page by --after-id;
+                                     --after-index/--through-index retain late arrivals.
+                                     --coverage-roots <JSON array> checks source freshness.
   lore get <message-id> [--full] [--json]
                                      Fetch one message. Default is an elided snippet;
                                      --full returns the complete stored text
@@ -438,6 +447,56 @@ export async function runCli(argv: string[]): Promise<number> {
       } finally {
         db?.close();
       }
+    }
+    case "messages": {
+      const value = (name: string) => {
+        const at = rest.indexOf(name);
+        return at < 0 ? undefined : rest[at + 1];
+      };
+      const since = value("--since"),
+        role = value("--role");
+      if (!since || !role) {
+        process.stderr.write("messages requires --since and --role\n");
+        return 1;
+      }
+      const dbPath = resolveDbPath();
+      if (!existsSync(dbPath)) {
+        missingStore(dbPath);
+        return 1;
+      }
+      let coverageRoots: string[] | undefined;
+      if (value("--coverage-roots") !== undefined) {
+        try {
+          const parsed = JSON.parse(value("--coverage-roots")!);
+          if (!Array.isArray(parsed) || parsed.some((root) => typeof root !== "string" || !root))
+            throw new Error();
+          coverageRoots = parsed;
+        } catch {
+          process.stderr.write("invalid coverage roots\n");
+          return 1;
+        }
+      }
+      const result = withReadonlyStore(dbPath, (db) => ({
+        page: listMessages(db, {
+          since,
+          role,
+          afterId: value("--after-id"),
+          afterIndex:
+            value("--after-index") === undefined ? undefined : Number(value("--after-index")),
+          throughIndex:
+            value("--through-index") === undefined ? undefined : Number(value("--through-index")),
+          limit: value("--limit") === undefined ? 100 : Number(value("--limit")),
+        }),
+        sources: coverageRoots ? messageCoverageSources(db) : [],
+      }));
+      if (!result.ok) return 1;
+      const page = result.value.page;
+      if (coverageRoots)
+        page.gaps.push(...(await messageCoverageGaps(result.value.sources, coverageRoots, since)));
+      process.stdout.write(
+        JSON.stringify({ ...page, ...(coverageRoots ? { coverageChecked: true } : {}) }) + "\n",
+      );
+      return 0;
     }
     case "sessions": {
       const { opts, json } = parseSessionsArgs(rest);

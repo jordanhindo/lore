@@ -14,7 +14,7 @@ function userLine(overrides: Record<string, unknown> = {}): string {
     parentUuid: null,
     timestamp: "2026-05-10T03:53:45.638Z",
     sessionId: "sess-1",
-    cwd: "/Users/jordanhindo/claude-lives",
+    cwd: "/synthetic/claude-project",
     gitBranch: "main",
     message: { role: "user", content: "remember the alamo" },
     ...overrides,
@@ -33,7 +33,7 @@ describe("parseLine — user message", () => {
     expect(message.uuid).toBe("u-1");
     expect(message.parentUuid).toBeNull();
     expect(message.seq).toBe(0);
-    expect(message.project).toBe("/Users/jordanhindo/claude-lives");
+    expect(message.project).toBe("/synthetic/claude-project");
     expect(message.branch).toBe("main");
     expect(message.textTruncated).toBe(false);
   });
@@ -201,5 +201,89 @@ describe("parseLine — skill and agent dimensions", () => {
     const outcome = parseLine(userLine(), { ...baseCtx, seq: 0 });
     if (outcome.kind !== "parsed") throw new Error("expected parsed");
     expect(outcome.parsed.message.agent).toBeNull();
+  });
+});
+
+// Confirmed seam: Claude parseLine, SPEC R-02 L1; synthetic transcript only.
+describe("queued founder messages", () => {
+  it("indexes a queued command with its original uuid and exact text", () => {
+    const outcome = parseLine(
+      JSON.stringify({
+        type: "attachment",
+        uuid: "queued-1",
+        timestamp: "2026-11-07T01:17:39Z",
+        origin: { kind: "human" },
+        attachment: { type: "queued_command", content: "  keep these words\nexactly.  " },
+      }),
+      { ...baseCtx, seq: 7 },
+    );
+    expect(outcome.kind).toBe("parsed");
+    if (outcome.kind !== "parsed") throw new Error(outcome.reason);
+    expect(outcome.parsed.message).toMatchObject({
+      uuid: "queued-1",
+      role: "user",
+      text: "  keep these words\nexactly.  ",
+      textTruncated: false,
+    });
+  });
+});
+
+// Confirmed seam: adapter provenance, SPEC R-02 L2 and section 5.1.
+describe("Claude author provenance", () => {
+  it.each([
+    [{ origin: { kind: "human" } }, "human"],
+    [{ origin: { kind: "task-notification" } }, "harness"],
+    [{ origin: { kind: "human" }, isCompactSummary: true }, "harness"],
+    [{ origin: { kind: "human" }, isMeta: true }, "harness"],
+    [{ origin: { kind: "human" }, agentId: "worker" }, "agent"],
+    [{ entrypoint: "sdk-cli" }, "agent"],
+    [{ entrypoint: "t3-code" }, "unattributed"],
+    [{}, "unattributed"],
+    [
+      {
+        origin: { kind: "human" },
+        message: { content: [{ type: "tool_result", content: "result" }] },
+      },
+      "harness",
+    ],
+  ])("classifies harness provenance %j as %s", (fields, expected) => {
+    const outcome = parseLine(userLine(fields), { ...baseCtx, seq: 0 });
+    expect(outcome.kind).toBe("parsed");
+    if (outcome.kind !== "parsed") throw new Error(outcome.reason);
+    expect(outcome.parsed.message).toMatchObject({ authorKind: expected });
+  });
+  it("preserves the T3 entrypoint without treating it as human", () => {
+    const outcome = parseLine(userLine({ entrypoint: "t3-code" }), { ...baseCtx, seq: 0 });
+    if (outcome.kind !== "parsed") throw new Error(outcome.reason);
+    expect(outcome.parsed.message).toMatchObject({
+      entrypoint: "t3-code",
+      authorKind: "unattributed",
+    });
+  });
+});
+
+it("indexes the desktop queued-command prompt with nested human provenance", () => {
+  const outcome = parseLine(
+    JSON.stringify({
+      type: "attachment",
+      uuid: "queued-desktop",
+      entrypoint: "claude-desktop",
+      timestamp: "2026-11-07T01:00:00Z",
+      attachment: {
+        type: "queued_command",
+        prompt: "  synthetic mid-turn words\n ",
+        origin: { kind: "human" },
+        source_uuid: "original-user",
+        delivery_id: "delivery",
+        humanTurn: true,
+      },
+    }),
+    { ...baseCtx, seq: 8 },
+  );
+  if (outcome.kind !== "parsed") throw new Error(outcome.reason);
+  expect(outcome.parsed.message).toMatchObject({
+    uuid: "queued-desktop",
+    text: "  synthetic mid-turn words\n ",
+    authorKind: "human",
   });
 });

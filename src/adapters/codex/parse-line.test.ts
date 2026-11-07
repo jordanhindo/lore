@@ -144,3 +144,112 @@ describe("parseCodexLine", () => {
     expect(parseCodexLine("{not json", ctx).kind).toBe("skipped");
   });
 });
+
+// Confirmed seam: Codex parse with session metadata, SPEC R-02 L2.
+describe("Codex authorship", () => {
+  it.each([
+    ["Codex Desktop", "cli", "human"],
+    ["codex_cli_rs", "cli", "human"],
+    ["codex_vscode", "vscode", "human"],
+    ["codex_exec", "exec", "agent"],
+    ["Codex Desktop", { subagent: { thread_spawn: {} } }, "agent"],
+    ["unknown", "cli", "unattributed"],
+  ])("classifies %s session %j as %s", (originator, source, expected) => {
+    const fileMetadata = getCodexFileMetadata([
+      JSON.stringify({ type: "session_meta", payload: { originator, source } }),
+    ]);
+    const result = parseCodexLine(
+      JSON.stringify({
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Please keep this." }],
+        },
+      }),
+      { ...ctx, fileMetadata },
+    );
+    if (result.kind !== "parsed") throw new Error(result.reason);
+    expect(result.parsed.message).toMatchObject({ authorKind: expected, entrypoint: originator });
+  });
+  it("does not attribute an injected-only user row to a human", () => {
+    const fileMetadata = getCodexFileMetadata([
+      JSON.stringify({
+        type: "session_meta",
+        payload: { originator: "Codex Desktop", source: "cli" },
+      }),
+    ]);
+    const result = parseCodexLine(
+      JSON.stringify({
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [
+            { type: "input_text", text: "<environment_context>injected</environment_context>" },
+          ],
+        },
+      }),
+      { ...ctx, fileMetadata },
+    );
+    if (result.kind !== "parsed") throw new Error(result.reason);
+    expect(result.parsed.message).toMatchObject({ authorKind: "harness" });
+  });
+});
+
+it("retains the native Codex id and supplies the Compass line identity when absent", () => {
+  const line = {
+    type: "response_item",
+    payload: { type: "message", role: "user", content: [{ type: "input_text", text: "words" }] },
+  };
+  const native = parseCodexLine(JSON.stringify({ ...line, uuid: "native-turn" }), ctx);
+  const positional = parseCodexLine(JSON.stringify(line), ctx);
+  if (native.kind !== "parsed" || positional.kind !== "parsed")
+    throw new Error("expected messages");
+  expect(native.parsed.message.nativeUuid).toBe("native-turn");
+  expect(positional.parsed.message.nativeUuid).toBe("codex-line-4");
+});
+
+it("matches Compass native line identities when a transcript contains blank lines", async () => {
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { codexAdapter } = await import("./adapter.js");
+  const dir = await mkdtemp(join(tmpdir(), "lore-native-lines-"));
+  try {
+    const path = join(dir, "session.jsonl");
+    await writeFile(
+      path,
+      [
+        JSON.stringify({
+          type: "session_meta",
+          payload: { originator: "Codex Desktop", source: "cli" },
+        }),
+        "",
+        JSON.stringify({
+          type: "response_item",
+          payload: {
+            type: "message",
+            role: "user",
+            content: [{ type: "input_text", text: "synthetic words" }],
+          },
+        }),
+        "",
+      ].join("\n"),
+    );
+    const result = await codexAdapter.ingest(
+      { path, kind: "primary", agentFile: null, sessionId: "s" },
+      { sourceFileId: "sf", sessionId: "s", source: "codex", priorToken: null },
+    );
+    expect(result.messages[0]?.nativeUuid).toBe("codex-line-2");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it("marks T3 Code sessions unattributed with the shared T3 confirmation entrypoint", () => {
+  const metadata = getCodexFileMetadata([
+    JSON.stringify({ type: "session_meta", payload: { originator: "T3 Code", source: "cli" } }),
+  ]);
+  expect(metadata).toMatchObject({ authorKind: "unattributed", entrypoint: "t3-code" });
+});
